@@ -2,59 +2,28 @@
 
 import { useEffect, useState } from "react";
 
-type HealthResponse = {
-  status: string;
-  application: string;
-};
+type State = "loading" | "ok" | "error";
 
-type State =
-  | { kind: "loading" }
-  | { kind: "error"; message: string }
-  | { kind: "ok"; data: HealthResponse };
-
+/** Indique si l'API CampusConnect répond (appel public /api/health). */
 export default function BackendStatus() {
-  const [state, setState] = useState<State>({ kind: "loading" });
+  const [state, setState] = useState<State>("loading");
 
   useEffect(() => {
     let cancelled = false;
-
-    async function checkBackend() {
-      try {
-        const response = await fetch("/api/health");
-        if (!response.ok) {
-          throw new Error(`Réponse inattendue : ${response.status}`);
-        }
-        const data: HealthResponse = await response.json();
-        if (!cancelled) {
-          setState({ kind: "ok", data });
-        }
-      } catch (error) {
-        if (!cancelled) {
-          const message =
-            error instanceof Error ? error.message : "Erreur inconnue";
-          setState({ kind: "error", message });
-        }
-      }
-    }
-
-    checkBackend();
-
+    fetch("/api/health", { cache: "no-store" })
+      .then((response) => !cancelled && setState(response.ok ? "ok" : "error"))
+      .catch(() => !cancelled && setState("error"));
     return () => {
       cancelled = true;
     };
   }, []);
 
-  if (state.kind === "loading") {
-    return <p role="status">Vérification du serveur…</p>;
-  }
-
-  if (state.kind === "error") {
-    return <p role="alert">Serveur injoignable : {state.message}</p>;
-  }
-
+  const label =
+    state === "loading" ? "Vérification du serveur…" : state === "ok" ? "Serveur CampusConnect : ok" : "Serveur injoignable";
   return (
-    <p role="status">
-      Serveur {state.data.application} : {state.data.status}
-    </p>
+    <span className="status-line" role="status">
+      <span className={`dot ${state === "ok" ? "dot-ok" : state === "error" ? "dot-error" : ""}`} aria-hidden="true" />
+      {label}
+    </span>
   );
 }

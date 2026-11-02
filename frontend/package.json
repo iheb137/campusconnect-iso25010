@@ -9,6 +9,8 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "geist": "^1.5.1",
+    "ionicons": "^8.0.13",
     "next": "16.4.2",
     "react": "19.3.0",
     "react-dom": "19.3.0"

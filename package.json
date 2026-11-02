@@ -1,0 +1,9 @@
+{
+  "name": "campusconnect-iso25010",
+  "private": true,
+  "description": "Raccourcis pour démarrer et arrêter CampusConnect (backend + frontend). Utilisés par les configurations IntelliJ du dossier .run.",
+  "scripts": {
+    "start": "start.bat",
+    "stop": "stop.bat"
+  }
+}
