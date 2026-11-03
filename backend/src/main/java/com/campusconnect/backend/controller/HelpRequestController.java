@@ -3,6 +3,7 @@ package com.campusconnect.backend.controller;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -66,7 +67,15 @@ public class HelpRequestController {
         return helpRequestService.update(id, currentUserId(jwt), input);
     }
 
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable("id") Long id) {
+        helpRequestService.delete(id, currentUserId(jwt));
+    }
+
     private Long currentUserId(Jwt jwt) {
         return Long.valueOf(jwt.getSubject());
     }
-}
+}

@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.campusconnect.backend.dto.OfferInput;
 import com.campusconnect.backend.dto.OfferResponse;
+import com.campusconnect.backend.entity.AuditAction;
 import com.campusconnect.backend.entity.HelpOffer;
 import com.campusconnect.backend.entity.HelpRequest;
 import com.campusconnect.backend.entity.OfferStatus;
@@ -26,14 +27,17 @@ public class OfferService {
     private final HelpOfferRepository helpOfferRepository;
     private final HelpRequestRepository helpRequestRepository;
     private final UserRepository userRepository;
+    private final AuditService auditService;
 
     public OfferService(
             HelpOfferRepository helpOfferRepository,
             HelpRequestRepository helpRequestRepository,
-            UserRepository userRepository) {
+            UserRepository userRepository,
+            AuditService auditService) {
         this.helpOfferRepository = helpOfferRepository;
         this.helpRequestRepository = helpRequestRepository;
         this.userRepository = userRepository;
+        this.auditService = auditService;
     }
 
     @Transactional
@@ -102,6 +106,8 @@ public class OfferService {
                 other.setStatus(OfferStatus.REFUSEE);
             }
         }
+        auditService.record(currentUserId, AuditAction.OFFER_ACCEPTED, AuditService.HELP_OFFER, offerId,
+                "Demande " + request.getId());
         return OfferResponse.from(offer);
     }
 
@@ -114,7 +120,29 @@ public class OfferService {
         HelpOffer offer = loadPendingOffer(offerId);
 
         offer.setStatus(OfferStatus.REFUSEE);
+        auditService.record(currentUserId, AuditAction.OFFER_REJECTED, AuditService.HELP_OFFER, offerId,
+                "Demande " + request.getId());
         return OfferResponse.from(offer);
+    }
+
+    /**
+     * Retrait d'une proposition par son auteur (RG-11) : seulement tant qu'elle est en attente
+     * et que la demande est ouverte.
+     */
+    @Transactional
+    public void withdraw(Long offerId, Long currentUserId) {
+        HelpRequest request = lockRequestOfOffer(offerId);
+        HelpOffer offer = helpOfferRepository.findById(offerId)
+                .orElseThrow(() -> new ResourceNotFoundException("Proposition introuvable"));
+        if (!offer.getHelper().getId().equals(currentUserId)) {
+            throw new ForbiddenOperationException("Seul l'auteur de la proposition peut la retirer");
+        }
+        if (offer.getStatus() != OfferStatus.EN_ATTENTE || request.getStatus() != RequestStatus.OUVERTE) {
+            throw new ConflictException("Seule une proposition en attente sur une demande ouverte peut être retirée");
+        }
+        helpOfferRepository.delete(offer);
+        auditService.record(currentUserId, AuditAction.OFFER_WITHDRAWN, AuditService.HELP_OFFER, offerId,
+                "Demande " + request.getId());
     }
 
     /**
@@ -149,4 +177,4 @@ public class OfferService {
         }
         return offer;
     }
-}
+}
