@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.campusconnect.backend.dto.ReportInput;
 import com.campusconnect.backend.dto.ReportResponse;
 import com.campusconnect.backend.dto.ReportedRequestResponse;
+import com.campusconnect.backend.entity.AuditAction;
 import com.campusconnect.backend.entity.HelpRequest;
 import com.campusconnect.backend.entity.Report;
 import com.campusconnect.backend.entity.ReportStatus;
@@ -35,14 +36,17 @@ public class ReportService {
     private final ReportRepository reportRepository;
     private final HelpRequestRepository helpRequestRepository;
     private final UserRepository userRepository;
+    private final AuditService auditService;
 
     public ReportService(
             ReportRepository reportRepository,
             HelpRequestRepository helpRequestRepository,
-            UserRepository userRepository) {
+            UserRepository userRepository,
+            AuditService auditService) {
         this.reportRepository = reportRepository;
         this.helpRequestRepository = helpRequestRepository;
         this.userRepository = userRepository;
+        this.auditService = auditService;
     }
 
     // ===== Étudiant =====
@@ -74,6 +78,8 @@ public class ReportService {
         } catch (DataIntegrityViolationException e) {
             throw new ConflictException("Vous avez déjà signalé cette demande");
         }
+        auditService.record(reporterId, AuditAction.REQUEST_REPORTED, AuditService.HELP_REQUEST, requestId,
+                report.getReason());
         return ReportResponse.from(saved);
     }
 
@@ -103,35 +109,41 @@ public class ReportService {
 
     /** Masque la publication et marque ses signalements en attente comme traités. */
     @Transactional
-    public ReportedRequestResponse hide(Long requestId) {
+    public ReportedRequestResponse hide(Long requestId, Long moderatorId) {
         HelpRequest request = loadForUpdate(requestId);
         if (request.isHidden()) {
             throw new ConflictException("Cette publication est déjà masquée");
         }
         request.setHidden(true);
         resolvePending(requestId, ReportStatus.TRAITE);
+        auditService.record(moderatorId, AuditAction.REQUEST_HIDDEN, AuditService.HELP_REQUEST, requestId,
+                request.getTitle());
         return reportedRequest(request);
     }
 
     /** Rend de nouveau visible une publication masquée. */
     @Transactional
-    public ReportedRequestResponse restore(Long requestId) {
+    public ReportedRequestResponse restore(Long requestId, Long moderatorId) {
         HelpRequest request = loadForUpdate(requestId);
         if (!request.isHidden()) {
             throw new ConflictException("Cette publication n'est pas masquée");
         }
         request.setHidden(false);
+        auditService.record(moderatorId, AuditAction.REQUEST_RESTORED, AuditService.HELP_REQUEST, requestId,
+                request.getTitle());
         return reportedRequest(request);
     }
 
     /** Rejette les signalements en attente : la publication reste visible. */
     @Transactional
-    public ReportedRequestResponse dismiss(Long requestId) {
+    public ReportedRequestResponse dismiss(Long requestId, Long moderatorId) {
         HelpRequest request = loadForUpdate(requestId);
         int resolved = resolvePending(requestId, ReportStatus.REJETE);
         if (resolved == 0) {
             throw new ConflictException("Aucun signalement en attente pour cette publication");
         }
+        auditService.record(moderatorId, AuditAction.REPORTS_DISMISSED, AuditService.HELP_REQUEST, requestId,
+                resolved + " signalement(s)");
         return reportedRequest(request);
     }
 

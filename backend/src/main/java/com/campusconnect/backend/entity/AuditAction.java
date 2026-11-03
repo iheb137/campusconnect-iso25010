@@ -1,0 +1,24 @@
+package com.campusconnect.backend.entity;
+
+/** Actions sensibles tracées dans le journal d'audit. */
+public enum AuditAction {
+    USER_REGISTERED,
+    LOGIN_SUCCEEDED,
+    LOGIN_FAILED,
+    USER_ROLE_CHANGED,
+    USER_DISABLED,
+    USER_ENABLED,
+    REQUEST_DELETED,
+    OFFER_ACCEPTED,
+    OFFER_REJECTED,
+    OFFER_WITHDRAWN,
+    SESSION_COMPLETED,
+    RATING_SUBMITTED,
+    REQUEST_REPORTED,
+    REQUEST_HIDDEN,
+    REQUEST_RESTORED,
+    REPORTS_DISMISSED,
+    SUBJECT_CREATED,
+    SUBJECT_UPDATED,
+    SUBJECT_DELETED
+}

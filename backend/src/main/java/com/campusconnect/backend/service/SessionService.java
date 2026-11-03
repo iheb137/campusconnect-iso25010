@@ -11,6 +11,7 @@ import com.campusconnect.backend.dto.HelpRequestResponse;
 import com.campusconnect.backend.dto.RatingInput;
 import com.campusconnect.backend.dto.RatingResponse;
 import com.campusconnect.backend.dto.SessionRatingsResponse;
+import com.campusconnect.backend.entity.AuditAction;
 import com.campusconnect.backend.entity.HelpOffer;
 import com.campusconnect.backend.entity.HelpRequest;
 import com.campusconnect.backend.entity.OfferStatus;
@@ -34,14 +35,17 @@ public class SessionService {
     private final HelpRequestRepository helpRequestRepository;
     private final HelpOfferRepository helpOfferRepository;
     private final RatingRepository ratingRepository;
+    private final AuditService auditService;
 
     public SessionService(
             HelpRequestRepository helpRequestRepository,
             HelpOfferRepository helpOfferRepository,
-            RatingRepository ratingRepository) {
+            RatingRepository ratingRepository,
+            AuditService auditService) {
         this.helpRequestRepository = helpRequestRepository;
         this.helpOfferRepository = helpOfferRepository;
         this.ratingRepository = ratingRepository;
+        this.auditService = auditService;
     }
 
     /**
@@ -66,6 +70,7 @@ public class SessionService {
 
         request.setStatus(RequestStatus.TERMINEE);
         request.setCompletedAt(Instant.now());
+        auditService.record(currentUserId, AuditAction.SESSION_COMPLETED, AuditService.HELP_REQUEST, requestId, null);
         return HelpRequestResponse.from(request, currentUserId);
     }
 
@@ -103,6 +108,8 @@ public class SessionService {
         } catch (DataIntegrityViolationException e) {
             throw new ConflictException("Vous avez déjà évalué cette séance");
         }
+        auditService.record(currentUserId, AuditAction.RATING_SUBMITTED, AuditService.HELP_REQUEST, requestId,
+                "Note " + input.score());
         return RatingResponse.from(saved);
     }
 

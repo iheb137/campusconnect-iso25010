@@ -2,6 +2,8 @@ package com.campusconnect.backend.controller;
 
 import java.util.List;
 
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -13,8 +15,8 @@ import com.campusconnect.backend.dto.ReportedRequestResponse;
 import com.campusconnect.backend.service.ReportService;
 
 /**
- * Espace administrateur : gestion des publications signalées.
- * L'accès à /api/admin/** est réservé au rôle ADMIN dans SecurityConfig.
+ * Modération des publications signalées.
+ * Accès : rôles MODERATOR et ADMIN (voir SecurityConfig).
  */
 @RestController
 @RequestMapping("/api/admin")
@@ -37,17 +39,17 @@ public class AdminController {
     }
 
     @PostMapping("/requests/{id}/hide")
-    public ReportedRequestResponse hide(@PathVariable("id") Long id) {
-        return reportService.hide(id);
+    public ReportedRequestResponse hide(@AuthenticationPrincipal Jwt jwt, @PathVariable("id") Long id) {
+        return reportService.hide(id, Long.valueOf(jwt.getSubject()));
     }
 
     @PostMapping("/requests/{id}/restore")
-    public ReportedRequestResponse restore(@PathVariable("id") Long id) {
-        return reportService.restore(id);
+    public ReportedRequestResponse restore(@AuthenticationPrincipal Jwt jwt, @PathVariable("id") Long id) {
+        return reportService.restore(id, Long.valueOf(jwt.getSubject()));
     }
 
     @PostMapping("/requests/{id}/dismiss")
-    public ReportedRequestResponse dismiss(@PathVariable("id") Long id) {
-        return reportService.dismiss(id);
+    public ReportedRequestResponse dismiss(@AuthenticationPrincipal Jwt jwt, @PathVariable("id") Long id) {
+        return reportService.dismiss(id, Long.valueOf(jwt.getSubject()));
     }
 }

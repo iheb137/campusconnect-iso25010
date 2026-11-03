@@ -11,9 +11,11 @@ import com.campusconnect.backend.dto.LoginRequest;
 import com.campusconnect.backend.dto.LoginResponse;
 import com.campusconnect.backend.dto.RegisterRequest;
 import com.campusconnect.backend.dto.UserResponse;
+import com.campusconnect.backend.entity.AuditAction;
 import com.campusconnect.backend.entity.Role;
 import com.campusconnect.backend.entity.User;
 import com.campusconnect.backend.exception.EmailAlreadyUsedException;
+import com.campusconnect.backend.exception.ForbiddenOperationException;
 import com.campusconnect.backend.exception.InvalidCredentialsException;
 import com.campusconnect.backend.repository.UserRepository;
 
@@ -23,6 +25,7 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final AuditService auditService;
 
     // Hachage factice : sert à faire le même travail quand l'email n'existe pas
     private final String dummyHash;
@@ -30,10 +33,12 @@ public class AuthService {
     public AuthService(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
-            JwtService jwtService) {
+            JwtService jwtService,
+            AuditService auditService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
+        this.auditService = auditService;
         this.dummyHash = passwordEncoder.encode("mot-de-passe-factice");
     }
 
@@ -57,6 +62,7 @@ public class AuthService {
         } catch (DataIntegrityViolationException e) {
             throw new EmailAlreadyUsedException();
         }
+        auditService.record(saved.getId(), AuditAction.USER_REGISTERED, AuditService.USER, saved.getId(), null);
         return UserResponse.from(saved);
     }
 
@@ -69,8 +75,19 @@ public class AuthService {
         boolean passwordMatches = passwordEncoder.matches(request.password(), hashToCheck);
 
         if (user == null || !passwordMatches) {
+            auditService.recordIndependently(user != null ? user.getId() : null, email,
+                    AuditAction.LOGIN_FAILED, AuditService.USER, user != null ? user.getId() : null, null);
             throw new InvalidCredentialsException();
         }
+        // RG-10 : un compte désactivé ne peut plus se connecter (vérifié après le mot de passe,
+        // pour ne rien révéler à quelqu'un qui ne connaît pas le mot de passe).
+        if (!user.isEnabled()) {
+            auditService.recordIndependently(user.getId(), email, AuditAction.LOGIN_FAILED, AuditService.USER,
+                    user.getId(), "Compte désactivé");
+            throw new ForbiddenOperationException("Ce compte est désactivé");
+        }
+        auditService.recordIndependently(user.getId(), email, AuditAction.LOGIN_SUCCEEDED, AuditService.USER,
+                user.getId(), null);
 
         return new LoginResponse(
                 jwtService.generateToken(user),
@@ -82,4 +99,4 @@ public class AuthService {
     private String normalize(String email) {
         return email.trim().toLowerCase(Locale.ROOT);
     }
-}
+}
