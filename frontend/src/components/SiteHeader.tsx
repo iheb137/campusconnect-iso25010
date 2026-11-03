@@ -2,13 +2,17 @@
 
 import {
   addCircleOutline,
+  analyticsOutline,
+  bookOutline,
   closeOutline,
   flagOutline,
   gridOutline,
   logInOutline,
   logOutOutline,
   menuOutline,
+  peopleOutline,
   personCircleOutline,
+  receiptOutline,
   searchOutline,
 } from "ionicons/icons";
 import Link from "next/link";
@@ -20,6 +24,8 @@ import Avatar from "./Avatar";
 import Icon from "./Icon";
 import Logo from "./Logo";
 import ThemeToggle from "./ThemeToggle";
+import { ROLE_LABEL, homeFor } from "@/lib/session";
+import type { Role } from "@/lib/types";
 
 type NavItem = { href: string; label: string; icon: string };
 
@@ -31,16 +37,27 @@ const STUDENT_NAV: NavItem[] = [
 ];
 
 const ADMIN_NAV: NavItem[] = [
+  { href: "/admin/stats", label: "Statistiques", icon: analyticsOutline },
+  { href: "/admin", label: "Signalements", icon: flagOutline },
+  { href: "/admin/users", label: "Comptes", icon: peopleOutline },
+  { href: "/admin/subjects", label: "Matières", icon: bookOutline },
+  { href: "/admin/audit", label: "Audit", icon: receiptOutline },
+  { href: "/requests", label: "Demandes", icon: searchOutline },
+];
+
+const MODERATOR_NAV: NavItem[] = [
   { href: "/admin", label: "Signalements", icon: flagOutline },
   { href: "/requests", label: "Demandes", icon: searchOutline },
 ];
+
+const NAV: Record<Role, NavItem[]> = { STUDENT: STUDENT_NAV, MODERATOR: MODERATOR_NAV, ADMIN: ADMIN_NAV };
 
 export default function SiteHeader() {
   const { user, loading, logout } = useAuth();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
-  const items = !user ? [] : user.role === "ADMIN" ? ADMIN_NAV : STUDENT_NAV;
+  const items = !user ? [] : NAV[user.role];
   const isCurrent = (href: string) =>
     href === "/requests" ? pathname === "/requests" || /^\/requests\/\d+/.test(pathname) : pathname === href;
   const close = () => setOpen(false);
@@ -48,7 +65,7 @@ export default function SiteHeader() {
   return (
     <header className="site-header">
       <div className="container">
-        <Link href={user ? (user.role === "ADMIN" ? "/admin" : "/dashboard") : "/"} className="brand" onClick={close}>
+        <Link href={user ? homeFor(user.role) : "/"} className="brand" onClick={close}>
           <Logo size={34} />
           CampusConnect
         </Link>
@@ -87,7 +104,7 @@ export default function SiteHeader() {
                 <Avatar name={user.fullName} size={34} />
                 <span className="user-chip-text">
                   <span className="user-chip-name">{user.fullName}</span>
-                  <span className="user-chip-role">{user.role === "ADMIN" ? "Administrateur" : "Étudiant"}</span>
+                  <span className="user-chip-role">{ROLE_LABEL[user.role]}</span>
                 </span>
               </span>
               <button type="button" className="nav-link" onClick={() => void logout()}>

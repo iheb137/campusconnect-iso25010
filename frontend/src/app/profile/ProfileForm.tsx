@@ -10,6 +10,7 @@ import Avatar from "@/components/Avatar";
 import Field from "@/components/Field";
 import Icon from "@/components/Icon";
 import { subjectIcon } from "@/lib/icons";
+import { ROLE_LABEL } from "@/lib/session";
 import { Alert, ErrorState, Loading } from "@/components/States";
 import { useApiData } from "@/components/useApiData";
 import { api, ApiError, errorMessage } from "@/lib/api";
@@ -47,7 +48,7 @@ export default function ProfileForm() {
   if (subjects.error || !subjects.data)
     return <ErrorState message={subjects.error ?? "Matières indisponibles"} onRetry={subjects.reload} />;
 
-  const isAdmin = me.data.role === "ADMIN";
+  const isAdmin = me.data.role !== "STUDENT";
 
   function toggleSkill(id: number) {
     setSkillIds((current) => (current.includes(id) ? current.filter((value) => value !== id) : [...current, id]));
@@ -177,7 +178,7 @@ export default function ProfileForm() {
           </p>
         </div>
         <div className="row" style={{ justifyContent: "center" }}>
-          <span className="chip">{isAdmin ? "Administrateur" : "Étudiant"}</span>
+          <span className="chip">{ROLE_LABEL[me.data.role]}</span>
           {level ? <span className="chip chip-neutral">Niveau {level}</span> : null}
           {specialty.trim() ? <span className="chip chip-neutral">{specialty.trim()}</span> : null}
         </div>

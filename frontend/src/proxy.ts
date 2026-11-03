@@ -7,7 +7,12 @@ import { TOKEN_COOKIE, homeFor, readClaims } from "@/lib/session";
 
 const PUBLIC_PATHS = ["/", "/login", "/register"];
 const GUEST_ONLY = ["/login", "/register"];
+/** Pages réservées aux étudiants. */
 const STUDENT_ONLY = [/^\/dashboard$/, /^\/requests\/new$/, /^\/requests\/[^/]+\/edit$/];
+/** Administration : statistiques, comptes, matières, audit (administrateur seulement). */
+const ADMIN_ONLY = /^\/admin\/(stats|users|subjects|audit)(\/|$)/;
+/** Modération des signalements : modérateur et administrateur. */
+const MODERATION = /^\/admin\/?$/;
 
 export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
@@ -27,14 +32,12 @@ export function proxy(request: NextRequest) {
     return response;
   }
 
-  if (GUEST_ONLY.includes(pathname)) {
-    return NextResponse.redirect(new URL(homeFor(claims.role), request.url));
-  }
-  if (pathname.startsWith("/admin") && claims.role !== "ADMIN") {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
-  }
-  if (claims.role === "ADMIN" && STUDENT_ONLY.some((pattern) => pattern.test(pathname))) {
-    return NextResponse.redirect(new URL("/admin", request.url));
+  const home = new URL(homeFor(claims.role), request.url);
+  if (GUEST_ONLY.includes(pathname)) return NextResponse.redirect(home);
+  if (ADMIN_ONLY.test(pathname) && claims.role !== "ADMIN") return NextResponse.redirect(home);
+  if (MODERATION.test(pathname) && claims.role === "STUDENT") return NextResponse.redirect(home);
+  if (claims.role !== "STUDENT" && STUDENT_ONLY.some((pattern) => pattern.test(pathname))) {
+    return NextResponse.redirect(home);
   }
   return NextResponse.next();
 }

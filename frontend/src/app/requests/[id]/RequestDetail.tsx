@@ -7,9 +7,10 @@ import {
   createOutline,
   schoolOutline,
   timeOutline,
+  trashOutline,
 } from "ionicons/icons";
 import Link from "next/link";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 import { useAuth } from "@/components/AuthProvider";
@@ -32,10 +33,12 @@ import ReportForm from "./ReportForm";
 export default function RequestDetail() {
   const { id } = useParams<{ id: string }>();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const { user } = useAuth();
   const request = useApiData<HelpRequest>(`/api/requests/${id}`);
   const [notice, setNotice] = useState<{ kind: "error" | "success"; text: string } | null>(null);
   const [completing, setCompleting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   if (request.loading && !request.data) return <Loading label="Chargement de la demande…" />;
   if (request.status === 404)
@@ -67,6 +70,19 @@ export default function RequestDetail() {
       setNotice({ kind: "error", text: errorMessage(error) });
     } finally {
       setCompleting(false);
+    }
+  }
+
+  async function remove() {
+    if (!window.confirm("Supprimer définitivement cette demande ? Les propositions reçues seront aussi supprimées.")) return;
+    setDeleting(true);
+    setNotice(null);
+    try {
+      await api(`/api/requests/${data.id}`, { method: "DELETE" });
+      router.push("/dashboard?deleted=1");
+    } catch (error) {
+      setNotice({ kind: "error", text: errorMessage(error) });
+      setDeleting(false);
     }
   }
 
@@ -180,10 +196,16 @@ export default function RequestDetail() {
               <div className="card-head">
                 <h2>Gérer</h2>
               </div>
-              <Link href={`/requests/${data.id}/edit`} className="btn btn-block">
-                <Icon icon={createOutline} size={18} />
-                Modifier la demande
-              </Link>
+              <div className="stack" style={{ gap: 10 }}>
+                <Link href={`/requests/${data.id}/edit`} className="btn btn-block">
+                  <Icon icon={createOutline} size={18} />
+                  Modifier la demande
+                </Link>
+                <button type="button" className="btn btn-ghost btn-block" onClick={remove} disabled={deleting} style={{ color: "var(--danger)" }}>
+                  <Icon icon={trashOutline} size={18} />
+                  {deleting ? "Suppression…" : "Supprimer la demande"}
+                </button>
+              </div>
             </section>
           ) : null}
 

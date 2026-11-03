@@ -12,15 +12,19 @@ import {
   searchOutline,
   star,
   starOutline,
+  arrowUndoOutline,
 } from "ionicons/icons";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { useState } from "react";
 
 import { useAuth } from "@/components/AuthProvider";
 import Avatar from "@/components/Avatar";
 import { OfferStatusBadge, RequestStatusBadge } from "@/components/Badges";
 import Icon from "@/components/Icon";
-import { EmptyState, ErrorState, SkeletonList } from "@/components/States";
+import { Alert, EmptyState, ErrorState, SkeletonList } from "@/components/States";
 import { useApiData } from "@/components/useApiData";
+import { api, errorMessage } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import { subjectIcon } from "@/lib/icons";
 import type { Dashboard } from "@/lib/types";
@@ -28,6 +32,7 @@ import type { Dashboard } from "@/lib/types";
 export default function DashboardView() {
   const { user } = useAuth();
   const dashboard = useApiData<Dashboard>("/api/dashboard");
+  const searchParams = useSearchParams();
   const firstName = user?.fullName.split(" ")[0];
 
   return (
@@ -43,19 +48,37 @@ export default function DashboardView() {
         </Link>
       </section>
 
+      {searchParams.get("deleted") ? <Alert kind="success">La demande a été supprimée.</Alert> : null}
+
       {dashboard.loading && !dashboard.data ? (
         <SkeletonList count={4} />
       ) : dashboard.error || !dashboard.data ? (
         <ErrorState message={dashboard.error ?? "Chargement impossible"} onRetry={dashboard.reload} />
       ) : (
-        <Content data={dashboard.data} />
+        <Content data={dashboard.data} onChanged={dashboard.reload} />
       )}
     </div>
   );
 }
 
-function Content({ data }: { data: Dashboard }) {
+function Content({ data, onChanged }: { data: Dashboard; onChanged: () => void }) {
   const { stats } = data;
+  const [busyOffer, setBusyOffer] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function withdraw(offerId: number, title: string) {
+    if (!window.confirm(`Retirer votre proposition sur « ${title} » ?`)) return;
+    setBusyOffer(offerId);
+    setError(null);
+    try {
+      await api(`/api/offers/${offerId}`, { method: "DELETE" });
+      onChanged();
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusyOffer(null);
+    }
+  }
   const toRate = data.sessions.filter((session) => !session.ratedByMe).length;
 
   return (
@@ -150,6 +173,8 @@ function Content({ data }: { data: Dashboard }) {
         )}
       </section>
 
+      {error ? <Alert kind="error">{error}</Alert> : null}
+
       <section className="card fade-in" aria-labelledby="my-offers">
         <div className="card-head">
           <h2 id="my-offers">
@@ -185,7 +210,21 @@ function Content({ data }: { data: Dashboard }) {
                     </div>
                   </div>
                 </div>
-                <OfferStatusBadge status={offer.status} />
+                <div className="row">
+                  {offer.status === "EN_ATTENTE" && offer.requestStatus === "OUVERTE" ? (
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      disabled={busyOffer !== null}
+                      onClick={() => void withdraw(offer.id, offer.requestTitle)}
+                      aria-label={`Retirer ma proposition sur ${offer.requestTitle}`}
+                    >
+                      <Icon icon={arrowUndoOutline} size={16} />
+                      Retirer
+                    </button>
+                  ) : null}
+                  <OfferStatusBadge status={offer.status} />
+                </div>
               </li>
             ))}
           </ul>

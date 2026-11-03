@@ -11,6 +11,7 @@ import Field from "@/components/Field";
 import Icon from "@/components/Icon";
 import { Alert } from "@/components/States";
 import { api, ApiError, errorMessage } from "@/lib/api";
+import { homeFor } from "@/lib/session";
 import type { LoginResult } from "@/lib/types";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -43,7 +44,7 @@ export default function LoginForm() {
         body: { email: email.trim(), password },
       });
       setUser(result.user);
-      const home = result.user.role === "ADMIN" ? "/admin" : "/dashboard";
+      const home = homeFor(result.user.role);
       router.replace(next ?? home);
     } catch (error) {
       setFormError(errorMessage(error));

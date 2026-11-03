@@ -1,6 +1,6 @@
 // Types des réponses de l'API Spring Boot (voir backend/src/main/java/.../dto).
 
-export type Role = "STUDENT" | "ADMIN";
+export type Role = "STUDENT" | "MODERATOR" | "ADMIN";
 export type Level = "L1" | "L2" | "L3" | "M1" | "M2";
 export type RequestStatus = "OUVERTE" | "AIDE_ACCEPTEE" | "TERMINEE";
 export type OfferStatus = "EN_ATTENTE" | "ACCEPTEE" | "REFUSEE";
@@ -137,4 +137,65 @@ export type Dashboard = {
     partner: Person;
     ratedByMe: boolean;
   }[];
+};
+
+export type AdminUser = {
+  id: number;
+  email: string;
+  fullName: string;
+  role: Role;
+  enabled: boolean;
+  level: Level | null;
+  specialty: string | null;
+  createdAt: string;
+};
+
+export type AuditAction =
+  | "USER_REGISTERED"
+  | "LOGIN_SUCCEEDED"
+  | "LOGIN_FAILED"
+  | "USER_ROLE_CHANGED"
+  | "USER_DISABLED"
+  | "USER_ENABLED"
+  | "REQUEST_DELETED"
+  | "OFFER_ACCEPTED"
+  | "OFFER_REJECTED"
+  | "OFFER_WITHDRAWN"
+  | "SESSION_COMPLETED"
+  | "RATING_SUBMITTED"
+  | "REQUEST_REPORTED"
+  | "REQUEST_HIDDEN"
+  | "REQUEST_RESTORED"
+  | "REPORTS_DISMISSED"
+  | "SUBJECT_CREATED"
+  | "SUBJECT_UPDATED"
+  | "SUBJECT_DELETED";
+
+export type AuditEntry = {
+  id: number;
+  createdAt: string;
+  actorId: number | null;
+  actorEmail: string | null;
+  action: AuditAction;
+  targetType: string | null;
+  targetId: number | null;
+  details: string | null;
+};
+
+export type AdminStats = {
+  from: string;
+  to: string;
+  subjectId: number | null;
+  usersByRole: Record<Role, number>;
+  requestsByStatus: Record<RequestStatus, number>;
+  offersByStatus: Record<OfferStatus, number>;
+  totalRequests: number;
+  completedSessions: number;
+  completionRate: number | null;
+  averageRating: number | null;
+  ratingsCount: number;
+  pendingReports: number;
+  bySubject: { subjectId: number; name: string; requests: number; completed: number }[];
+  requestsPerDay: { day: string; count: number }[];
+  topHelpers: { userId: number; fullName: string; sessions: number }[];
 };
