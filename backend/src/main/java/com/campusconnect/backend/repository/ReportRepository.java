@@ -20,6 +20,8 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
 
     List<Report> findByRequestIdAndStatus(Long requestId, ReportStatus status);
 
+    long countByStatus(ReportStatus status);
+
     /** Tous les signalements, du plus récent au plus ancien, avec la demande, son auteur et le signaleur. */
     @EntityGraph(attributePaths = { "reporter", "request", "request.author", "request.subject" })
     @Query("select r from Report r order by r.createdAt desc, r.id desc")

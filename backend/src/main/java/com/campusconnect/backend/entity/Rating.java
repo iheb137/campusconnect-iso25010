@@ -53,7 +53,9 @@ public class Rating {
 
     @PrePersist
     void onCreate() {
-        this.createdAt = Instant.now();
+        if (this.createdAt == null) {
+            this.createdAt = Instant.now();
+        }
     }
 
     public Long getId() {
@@ -78,6 +80,11 @@ public class Rating {
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    /** Réservé aux données de démonstration (dates étalées dans le passé). */
+    public void setCreatedAt(Instant createdAt) {
+        this.createdAt = createdAt;
     }
 
     public HelpRequest getRequest() {

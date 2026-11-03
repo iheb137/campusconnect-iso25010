@@ -1,5 +1,6 @@
 package com.campusconnect.backend.repository;
 
+import java.time.Instant;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.EntityGraph;
@@ -17,6 +18,14 @@ public interface RatingRepository extends JpaRepository<Rating, Long> {
     List<Rating> findByRequestIdOrderByCreatedAtAscIdAsc(Long requestId);
 
     List<Rating> findByRequestId(Long requestId);
+
+    /** Moyenne et nombre d'évaluations sur la période : [moyenne, total]. */
+    @Query("""
+            select avg(r.score), count(r) from Rating r
+            where r.createdAt >= :from and r.createdAt < :to
+              and (:subjectId is null or r.request.subject.id = :subjectId)
+            """)
+    List<Object[]> averageScore(@Param("from") Instant from, @Param("to") Instant to, @Param("subjectId") Long subjectId);
 
     List<Rating> findByRaterIdOrRatedId(Long raterId, Long ratedId);
 

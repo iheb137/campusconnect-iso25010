@@ -1,6 +1,9 @@
 package com.campusconnect.backend.repository;
 
+import java.time.Instant;
 import java.util.List;
+
+import org.springframework.data.domain.Pageable;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.EntityGraph;
@@ -21,6 +24,28 @@ public interface HelpOfferRepository extends JpaRepository<HelpOffer, Long> {
     List<HelpOffer> findByHelperId(Long helperId);
 
     List<HelpOffer> findByRequestId(Long requestId);
+
+    /** Propositions faites sur la période, par statut : [status, total]. */
+    @Query("""
+            select o.status, count(o) from HelpOffer o
+            where o.createdAt >= :from and o.createdAt < :to
+              and (:subjectId is null or o.request.subject.id = :subjectId)
+            group by o.status
+            """)
+    List<Object[]> countByStatus(@Param("from") Instant from, @Param("to") Instant to, @Param("subjectId") Long subjectId);
+
+    /** Aidants les plus actifs (séances terminées sur la période) : [helperId, nom, séances]. */
+    @Query("""
+            select o.helper.id, o.helper.fullName, count(o) from HelpOffer o
+            where o.status = com.campusconnect.backend.entity.OfferStatus.ACCEPTEE
+              and o.request.status = com.campusconnect.backend.entity.RequestStatus.TERMINEE
+              and o.request.completedAt >= :from and o.request.completedAt < :to
+              and (:subjectId is null or o.request.subject.id = :subjectId)
+            group by o.helper.id, o.helper.fullName
+            order by count(o) desc
+            """)
+    List<Object[]> topHelpers(
+            @Param("from") Instant from, @Param("to") Instant to, @Param("subjectId") Long subjectId, Pageable pageable);
 
     /**
      * Renvoie seulement l'identifiant de la demande liée à la proposition (une valeur simple,

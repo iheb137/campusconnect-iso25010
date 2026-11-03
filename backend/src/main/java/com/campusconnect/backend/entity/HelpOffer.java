@@ -48,7 +48,9 @@ public class HelpOffer {
 
     @PrePersist
     void onCreate() {
-        this.createdAt = Instant.now();
+        if (this.createdAt == null) {
+            this.createdAt = Instant.now();
+        }
     }
 
     public Long getId() {
@@ -75,6 +77,11 @@ public class HelpOffer {
         return createdAt;
     }
 
+    /** Réservé aux données de démonstration (dates étalées dans le passé). */
+    public void setCreatedAt(Instant createdAt) {
+        this.createdAt = createdAt;
+    }
+
     public User getHelper() {
         return helper;
     }
@@ -90,4 +97,4 @@ public class HelpOffer {
     public void setRequest(HelpRequest request) {
         this.request = request;
     }
-}
+}

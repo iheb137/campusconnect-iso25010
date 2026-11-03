@@ -1,5 +1,6 @@
 package com.campusconnect.backend.repository;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -30,6 +31,37 @@ public interface HelpRequestRepository extends JpaRepository<HelpRequest, Long> 
     Optional<HelpRequest> findByIdForUpdate(@Param("id") Long id);
 
     List<HelpRequest> findByAuthorId(Long authorId);
+
+    boolean existsBySubjectId(Long subjectId);
+
+    /** Demandes publiées sur la période, par statut : [status, total]. */
+    @Query("""
+            select r.status, count(r) from HelpRequest r
+            where r.createdAt >= :from and r.createdAt < :to
+              and (:subjectId is null or r.subject.id = :subjectId)
+            group by r.status
+            """)
+    List<Object[]> countByStatus(@Param("from") Instant from, @Param("to") Instant to, @Param("subjectId") Long subjectId);
+
+    /** Par matière sur la période : [subjectId, nom, total, terminées]. */
+    @Query("""
+            select r.subject.id, r.subject.name, count(r),
+                   sum(case when r.status = com.campusconnect.backend.entity.RequestStatus.TERMINEE then 1 else 0 end)
+            from HelpRequest r
+            where r.createdAt >= :from and r.createdAt < :to
+              and (:subjectId is null or r.subject.id = :subjectId)
+            group by r.subject.id, r.subject.name
+            order by count(r) desc
+            """)
+    List<Object[]> countBySubject(@Param("from") Instant from, @Param("to") Instant to, @Param("subjectId") Long subjectId);
+
+    /** Dates de publication sur la période (agrégées par jour dans le service). */
+    @Query("""
+            select r.createdAt from HelpRequest r
+            where r.createdAt >= :from and r.createdAt < :to
+              and (:subjectId is null or r.subject.id = :subjectId)
+            """)
+    List<Instant> findCreationDates(@Param("from") Instant from, @Param("to") Instant to, @Param("subjectId") Long subjectId);
 
     /** Demandes publiées par l'auteur (masquées comprises), les plus récentes d'abord. */
     @EntityGraph(attributePaths = { "subject" })
