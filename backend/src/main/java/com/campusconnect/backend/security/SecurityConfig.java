@@ -10,9 +10,12 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
+
+import com.campusconnect.backend.repository.UserRepository;
 
 import jakarta.servlet.http.HttpServletResponse;
 
@@ -25,6 +28,12 @@ public class SecurityConfig {
     private static final AccessDeniedHandler ACCESS_DENIED_HANDLER = (request, response, ex) ->
             writeError(response, HttpStatus.FORBIDDEN, "Accès refusé");
 
+    private final UserRepository userRepository;
+
+    public SecurityConfig(UserRepository userRepository) {
+        this.userRepository = userRepository;
+    }
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
@@ -32,7 +41,10 @@ public class SecurityConfig {
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**", "/api/health").permitAll()
+                        .requestMatchers("/api/auth/**", "/api/health", "/error").permitAll()
+                        // Modération : modérateurs et administrateurs
+                        .requestMatchers("/api/admin/reports", "/api/admin/requests/**").hasAnyRole("MODERATOR", "ADMIN")
+                        // Administration (comptes, matières, audit, statistiques) : administrateurs seulement
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/requests").hasRole("STUDENT")
                         .requestMatchers(HttpMethod.POST, "/api/requests/*/offers").hasRole("STUDENT")
@@ -45,7 +57,8 @@ public class SecurityConfig {
                 .oauth2ResourceServer(oauth -> oauth
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter()))
                         .authenticationEntryPoint(ENTRY_POINT)
-                        .accessDeniedHandler(ACCESS_DENIED_HANDLER));
+                        .accessDeniedHandler(ACCESS_DENIED_HANDLER))
+                .addFilterAfter(new DisabledAccountFilter(userRepository), BearerTokenAuthenticationFilter.class);
         return http.build();
     }
 

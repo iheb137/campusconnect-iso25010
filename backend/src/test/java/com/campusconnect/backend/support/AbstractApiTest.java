@@ -21,10 +21,12 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import com.campusconnect.backend.entity.HelpRequest;
 import com.campusconnect.backend.entity.Role;
 import com.campusconnect.backend.entity.User;
+import com.campusconnect.backend.repository.AuditLogRepository;
 import com.campusconnect.backend.repository.HelpOfferRepository;
 import com.campusconnect.backend.repository.HelpRequestRepository;
 import com.campusconnect.backend.repository.RatingRepository;
 import com.campusconnect.backend.repository.ReportRepository;
+import com.campusconnect.backend.repository.SubjectRepository;
 import com.campusconnect.backend.repository.UserRepository;
 
 /**
@@ -56,10 +58,17 @@ public abstract class AbstractApiTest {
     protected ReportRepository reportRepository;
 
     @Autowired
+    protected SubjectRepository subjectRepository;
+
+    @Autowired
+    protected AuditLogRepository auditLogRepository;
+
+    @Autowired
     protected PasswordEncoder passwordEncoder;
 
     private final HttpClient client = HttpClient.newHttpClient();
     private final List<String> createdEmails = new ArrayList<>();
+    private final List<String> createdSubjects = new ArrayList<>();
 
     @AfterEach
     void cleanUpCreatedData() {
@@ -79,6 +88,10 @@ public abstract class AbstractApiTest {
             });
         }
         createdEmails.clear();
+        for (String name : createdSubjects) {
+            subjectRepository.findByName(name).ifPresent(subjectRepository::delete);
+        }
+        createdSubjects.clear();
     }
 
     protected HttpResponse<String> send(String method, String path, String token, String json) throws Exception {
@@ -107,13 +120,60 @@ public abstract class AbstractApiTest {
 
     /** Crée un administrateur directement en base, le connecte et renvoie son jeton. */
     protected String adminLogin() throws Exception {
+        return loginWithRole(Role.ADMIN, "Admin Test");
+    }
+
+    /** Crée un modérateur directement en base, le connecte et renvoie son jeton. */
+    protected String moderatorLogin() throws Exception {
+        return loginWithRole(Role.MODERATOR, "Moderateur Test");
+    }
+
+    private String loginWithRole(Role role, String fullName) throws Exception {
         String email = newEmail();
-        User admin = new User();
-        admin.setEmail(email);
-        admin.setFullName("Admin Test");
-        admin.setPasswordHash(passwordEncoder.encode("MotDePasse123"));
-        admin.setRole(Role.ADMIN);
-        userRepository.save(admin);
+        User user = new User();
+        user.setEmail(email);
+        user.setFullName(fullName);
+        user.setPasswordHash(passwordEncoder.encode("MotDePasse123"));
+        user.setRole(role);
+        userRepository.save(user);
+        return login(email);
+    }
+
+    /** Identifiant de l'utilisateur connecté (lu via /api/users/me). */
+    protected Long meId(String token) throws Exception {
+        HttpResponse<String> me = send("GET", "/api/users/me", token, null);
+        assertThat(me.statusCode()).isEqualTo(200);
+        return firstId(me.body());
+    }
+
+    /** Email de l'utilisateur connecté. */
+    protected String meEmail(String token) throws Exception {
+        String body = send("GET", "/api/users/me", token, null).body();
+        Matcher matcher = Pattern.compile("\"email\":\"([^\"]+)\"").matcher(body);
+        assertThat(matcher.find()).isTrue();
+        return matcher.group(1);
+    }
+
+    /** Crée une matière via l'API d'administration (supprimée après le test) et renvoie son identifiant. */
+    protected Long createSubject(String adminToken, String name) throws Exception {
+        createdSubjects.add(name);
+        HttpResponse<String> response = send("POST", "/api/admin/subjects", adminToken, "{\"name\":\"" + name + "\"}");
+        assertThat(response.statusCode()).isEqualTo(201);
+        return firstId(response.body());
+    }
+
+    /** Enregistre un nom de matière à supprimer après le test (si un test la crée lui-même). */
+    protected void trackSubject(String name) {
+        createdSubjects.add(name);
+    }
+
+    /** Connexion avec un email et le mot de passe de test ; renvoie la réponse brute. */
+    protected HttpResponse<String> tryLogin(String email) throws Exception {
+        return send("POST", "/api/auth/login", null,
+                "{\"email\":\"" + email + "\",\"password\":\"MotDePasse123\"}");
+    }
+
+    protected String loginAs(String email) throws Exception {
         return login(email);
     }
 

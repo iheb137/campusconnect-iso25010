@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
@@ -18,6 +19,7 @@ import com.campusconnect.backend.repository.SubjectRepository;
 import com.campusconnect.backend.repository.UserRepository;
 
 @Component
+@Order(1)
 public class DataInitializer implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(DataInitializer.class);
@@ -39,24 +41,31 @@ public class DataInitializer implements ApplicationRunner {
     private final PasswordEncoder passwordEncoder;
     private final String adminEmail;
     private final String adminPassword;
+    private final String moderatorEmail;
+    private final String moderatorPassword;
 
     public DataInitializer(
             SubjectRepository subjectRepository,
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
             @Value("${app.admin.email:}") String adminEmail,
-            @Value("${app.admin.password:}") String adminPassword) {
+            @Value("${app.admin.password:}") String adminPassword,
+            @Value("${app.moderator.email:}") String moderatorEmail,
+            @Value("${app.moderator.password:}") String moderatorPassword) {
         this.subjectRepository = subjectRepository;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.adminEmail = adminEmail;
         this.adminPassword = adminPassword;
+        this.moderatorEmail = moderatorEmail;
+        this.moderatorPassword = moderatorPassword;
     }
 
     @Override
     public void run(ApplicationArguments args) {
         seedSubjects();
         seedAdmin();
+        seedAccount(moderatorEmail, moderatorPassword, "Modérateur", Role.MODERATOR);
     }
 
     private void seedSubjects() {
@@ -70,6 +79,21 @@ public class DataInitializer implements ApplicationRunner {
             }
         }
         log.info("Matières initiales : {} ajoutée(s), {} au total", created, subjectRepository.count());
+    }
+
+    /** Crée un compte de service (ex. modérateur) s'il est configuré et n'existe pas encore. */
+    private void seedAccount(String rawEmail, String password, String fullName, Role role) {
+        String email = rawEmail == null ? "" : rawEmail.trim().toLowerCase(Locale.ROOT);
+        if (email.isEmpty() || password == null || password.isBlank() || userRepository.existsByEmail(email)) {
+            return;
+        }
+        User user = new User();
+        user.setEmail(email);
+        user.setFullName(fullName);
+        user.setPasswordHash(passwordEncoder.encode(password));
+        user.setRole(role);
+        userRepository.save(user);
+        log.info("Compte {} créé", role);
     }
 
     private void seedAdmin() {
@@ -90,4 +114,4 @@ public class DataInitializer implements ApplicationRunner {
         userRepository.save(admin);
         log.info("Compte administrateur créé");
     }
-}
+}

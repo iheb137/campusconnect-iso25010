@@ -4,6 +4,8 @@ import java.time.Instant;
 import java.util.HashSet;
 import java.util.Set;
 
+import org.hibernate.annotations.ColumnDefault;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -47,6 +49,11 @@ public class User {
 
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
+
+    /** Compte actif. Un compte désactivé ne peut plus se connecter ni utiliser l'API (RG-10). */
+    @ColumnDefault("true")
+    @Column(nullable = false)
+    private boolean enabled = true;
 
     @ManyToMany
     @JoinTable(
@@ -116,7 +123,15 @@ public class User {
         return createdAt;
     }
 
+    public boolean isEnabled() {
+        return enabled;
+    }
+
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+    }
+
     public Set<Subject> getSkills() {
         return skills;
     }
-}
+}
