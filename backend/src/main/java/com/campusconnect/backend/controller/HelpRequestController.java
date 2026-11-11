@@ -47,9 +47,10 @@ public class HelpRequestController {
             @RequestParam(name = "subjectId", required = false) Long subjectId,
             @RequestParam(name = "level", required = false) Level level,
             @RequestParam(name = "status", required = false) RequestStatus status,
+            @RequestParam(name = "q", required = false) String query,
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "10") int size) {
-        return helpRequestService.search(subjectId, level, status, page, size, currentUserId(jwt));
+        return helpRequestService.search(subjectId, level, status, query, page, size, currentUserId(jwt));
     }
 
     @GetMapping("/{id}")

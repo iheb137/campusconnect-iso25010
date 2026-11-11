@@ -9,4 +9,9 @@ import java.util.List;
  * @param ratings évaluations déjà laissées sur cette séance
  */
 public record SessionRatingsResponse(boolean canRate, List<RatingResponse> ratings) {
+
+    /** Copie défensive non modifiable. */
+    public SessionRatingsResponse {
+        ratings = List.copyOf(ratings);
+    }
 }

@@ -16,6 +16,13 @@ public record DashboardResponse(
         List<MyOffer> myOffers,
         List<Session> sessions) {
 
+    /** Copies défensives non modifiables : l'objet renvoyé est immuable. */
+    public DashboardResponse {
+        myRequests = List.copyOf(myRequests);
+        myOffers = List.copyOf(myOffers);
+        sessions = List.copyOf(sessions);
+    }
+
     public record Stats(
             long publishedRequests,
             long openRequests,

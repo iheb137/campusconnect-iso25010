@@ -22,6 +22,11 @@ public record ReportedRequestResponse(
         long pendingReports,
         List<ReportResponse> reports) {
 
+    /** Copie défensive non modifiable. */
+    public ReportedRequestResponse {
+        reports = List.copyOf(reports);
+    }
+
     /**
      * À appeler pendant une transaction : l'auteur et la matière sont chargés à la demande.
      */

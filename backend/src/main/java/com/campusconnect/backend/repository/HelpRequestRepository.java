@@ -74,10 +74,12 @@ public interface HelpRequestRepository extends JpaRepository<HelpRequest, Long> 
               and (:subjectId is null or r.subject.id = :subjectId)
               and (:level is null or r.level = :level)
               and (:status is null or r.status = :status)
+              and (lower(r.title) like :pattern escape '\\' or lower(r.description) like :pattern escape '\\')
             """)
     Page<HelpRequest> search(
             @Param("subjectId") Long subjectId,
             @Param("level") Level level,
             @Param("status") RequestStatus status,
+            @Param("pattern") String pattern,
             Pageable pageable);
 }

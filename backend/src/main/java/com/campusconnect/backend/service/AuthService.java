@@ -17,6 +17,7 @@ import com.campusconnect.backend.entity.User;
 import com.campusconnect.backend.exception.EmailAlreadyUsedException;
 import com.campusconnect.backend.exception.ForbiddenOperationException;
 import com.campusconnect.backend.exception.InvalidCredentialsException;
+import com.campusconnect.backend.exception.TooManyAttemptsException;
 import com.campusconnect.backend.repository.UserRepository;
 
 @Service
@@ -26,6 +27,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AuditService auditService;
+    private final LoginAttemptService loginAttemptService;
 
     // Hachage factice : sert à faire le même travail quand l'email n'existe pas
     private final String dummyHash;
@@ -34,11 +36,13 @@ public class AuthService {
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
             JwtService jwtService,
-            AuditService auditService) {
+            AuditService auditService,
+            LoginAttemptService loginAttemptService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.auditService = auditService;
+        this.loginAttemptService = loginAttemptService;
         this.dummyHash = passwordEncoder.encode("mot-de-passe-factice");
     }
 
@@ -69,12 +73,20 @@ public class AuthService {
     @Transactional(readOnly = true)
     public LoginResponse login(LoginRequest request) {
         String email = normalize(request.email());
+        try {
+            loginAttemptService.checkAllowed(email);
+        } catch (TooManyAttemptsException blocked) {
+            auditService.recordIndependently(null, email, AuditAction.LOGIN_FAILED, AuditService.USER, null,
+                    "Bloqué : trop de tentatives");
+            throw blocked;
+        }
         User user = userRepository.findByEmail(email).orElse(null);
 
         String hashToCheck = user != null ? user.getPasswordHash() : dummyHash;
         boolean passwordMatches = passwordEncoder.matches(request.password(), hashToCheck);
 
         if (user == null || !passwordMatches) {
+            loginAttemptService.recordFailure(email);
             auditService.recordIndependently(user != null ? user.getId() : null, email,
                     AuditAction.LOGIN_FAILED, AuditService.USER, user != null ? user.getId() : null, null);
             throw new InvalidCredentialsException();
@@ -86,6 +98,7 @@ public class AuthService {
                     user.getId(), "Compte désactivé");
             throw new ForbiddenOperationException("Ce compte est désactivé");
         }
+        loginAttemptService.recordSuccess(email);
         auditService.recordIndependently(user.getId(), email, AuditAction.LOGIN_SUCCEEDED, AuditService.USER,
                 user.getId(), null);
 

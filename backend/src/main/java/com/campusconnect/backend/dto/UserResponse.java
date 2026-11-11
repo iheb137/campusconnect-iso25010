@@ -16,6 +16,11 @@ public record UserResponse(
         Level level,
         List<SubjectResponse> skills) {
 
+    /** Copie défensive non modifiable. */
+    public UserResponse {
+        skills = List.copyOf(skills);
+    }
+
     /**
      * À appeler pendant une transaction : la collection des compétences est chargée à la demande.
      */
@@ -33,4 +38,4 @@ public record UserResponse(
                 user.getLevel(),
                 skills);
     }
-}
+}

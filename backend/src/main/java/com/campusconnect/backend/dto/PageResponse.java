@@ -11,6 +11,11 @@ public record PageResponse<T>(
         long totalElements,
         int totalPages) {
 
+    /** Copie défensive non modifiable du contenu de la page. */
+    public PageResponse {
+        content = List.copyOf(content);
+    }
+
     public static <T> PageResponse<T> from(Page<T> page) {
         return new PageResponse<>(
                 page.getContent(),
@@ -19,4 +24,4 @@ public record PageResponse<T>(
                 page.getTotalElements(),
                 page.getTotalPages());
     }
-}
+}

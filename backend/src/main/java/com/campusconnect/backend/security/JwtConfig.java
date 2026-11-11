@@ -16,8 +16,10 @@ import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 
-@Configuration
-public class JwtConfig {
+// final + proxyBeanMethods=false : aucune sous-classe possible, donc pas d'attaque par finaliseur
+// sur un objet partiellement construit si la clé est refusée (SpotBugs CT_CONSTRUCTOR_THROW).
+@Configuration(proxyBeanMethods = false)
+public final class JwtConfig {
 
     private final SecretKey secretKey;
 
@@ -41,4 +43,4 @@ public class JwtConfig {
                 .macAlgorithm(MacAlgorithm.HS256)
                 .build();
     }
-}
+}

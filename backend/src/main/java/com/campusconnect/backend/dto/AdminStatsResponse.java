@@ -1,6 +1,8 @@
 package com.campusconnect.backend.dto;
 
 import java.time.LocalDate;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -23,6 +25,16 @@ public record AdminStatsResponse(
         List<SubjectStat> bySubject,
         List<DayCount> requestsPerDay,
         List<HelperStat> topHelpers) {
+
+    /** Copies défensives non modifiables (ordre conservé) : l'objet renvoyé est immuable. */
+    public AdminStatsResponse {
+        usersByRole = Collections.unmodifiableMap(new LinkedHashMap<>(usersByRole));
+        requestsByStatus = Collections.unmodifiableMap(new LinkedHashMap<>(requestsByStatus));
+        offersByStatus = Collections.unmodifiableMap(new LinkedHashMap<>(offersByStatus));
+        bySubject = List.copyOf(bySubject);
+        requestsPerDay = List.copyOf(requestsPerDay);
+        topHelpers = List.copyOf(topHelpers);
+    }
 
     public record SubjectStat(Long subjectId, String name, long requests, long completed) {
     }

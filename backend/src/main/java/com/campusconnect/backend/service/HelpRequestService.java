@@ -1,5 +1,7 @@
 package com.campusconnect.backend.service;
 
+import java.util.Locale;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -121,6 +123,7 @@ public class HelpRequestService {
             Long subjectId,
             Level level,
             RequestStatus status,
+            String query,
             int page,
             int size,
             Long currentUserId) {
@@ -131,9 +134,21 @@ public class HelpRequestService {
         Pageable pageable = PageRequest.of(safePage, safeSize, newestFirst);
 
         Page<HelpRequestResponse> result = helpRequestRepository
-                .search(subjectId, level, status, pageable)
+                .search(subjectId, level, status, likePattern(query), pageable)
                 .map(request -> HelpRequestResponse.from(request, currentUserId));
         return PageResponse.from(result);
+    }
+
+    /** Motif LIKE insensible à la casse ; les jokers saisis (% et _) sont recherchés littéralement. */
+    static String likePattern(String query) {
+        if (query == null || query.isBlank()) {
+            return "%";
+        }
+        String escaped = query.trim().toLowerCase(Locale.ROOT)
+                .replace("\\", "\\\\")
+                .replace("%", "\\%")
+                .replace("_", "\\_");
+        return "%" + escaped + "%";
     }
 
     private Subject findSubject(Long subjectId) {
