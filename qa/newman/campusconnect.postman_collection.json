@@ -1,0 +1,2132 @@
+{
+  "info": {
+    "_postman_id": "0b48f4d8-948b-5e0c-9c65-21b69225d29c",
+    "name": "CampusConnect — API (ISO 25010)",
+    "description": "Tests fonctionnels de l'API REST. Exécution : npx newman run (voir qa/README.md).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "00 - Disponibilité",
+      "item": [
+        {
+          "name": "Santé de l'API et de la base",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "health"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Temps de réponse < 500 ms\", () => pm.expect(pm.response.responseTime).to.be.below(500));",
+                  "pm.test(\"Base de données joignable\", () => pm.expect(pm.response.json().database).to.eql(\"up\"));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "01 - Comptes et authentification (RG-08, RG-10, RG-13)",
+      "item": [
+        {
+          "name": "Inscription de l'auteur",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\": \"{{authorEmail}}\", \"password\": \"MotDePasse123\", \"fullName\": \"Auteur Newman\"}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"Temps de réponse < 1000 ms\", () => pm.expect(pm.response.responseTime).to.be.below(1000));",
+                  "pm.test(\"Le mot de passe n'est jamais renvoyé\", () => pm.expect(pm.response.text()).not.to.match(/password/i));",
+                  "pm.test(\"Rôle étudiant par défaut\", () => pm.expect(pm.response.json().role).to.eql(\"STUDENT\"));"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);",
+                  "pm.collectionVariables.set(\"runId\", id);",
+                  "pm.collectionVariables.set(\"authorEmail\", `auteur.${id}@newman.campusconnect.local`);",
+                  "pm.collectionVariables.set(\"helperEmail\", `aidant.${id}@newman.campusconnect.local`);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Inscription en double (email en majuscules) → 409",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\": \"{{authorEmail}}\", \"password\": \"MotDePasse123\", \"fullName\": \"Doublon\"}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 409\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.request.body.raw = pm.request.body.raw.replace(pm.collectionVariables.get(\"authorEmail\"), pm.collectionVariables.get(\"authorEmail\").toUpperCase());"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Inscription invalide → 400 avec erreurs par champ",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\": \"pas-un-email\", \"password\": \"123\", \"fullName\": \"\"}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Erreurs par champ\", () => pm.expect(Object.keys(pm.response.json().fieldErrors)).to.include.members([\"email\", \"password\", \"fullName\"]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Inscription de l'aidant",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\": \"{{helperEmail}}\", \"password\": \"MotDePasse123\", \"fullName\": \"Aidant Newman\"}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 201\", () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Connexion de l'auteur",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\": \"{{authorEmail}}\", \"password\": \"MotDePasse123\"}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Temps de réponse < 1000 ms\", () => pm.expect(pm.response.responseTime).to.be.below(1000));",
+                  "pm.collectionVariables.set(\"authorToken\", pm.response.json().token);",
+                  "pm.test(\"Jeton Bearer\", () => pm.expect(pm.response.json().tokenType).to.eql(\"Bearer\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Connexion de l'aidant",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\": \"{{helperEmail}}\", \"password\": \"MotDePasse123\"}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 200\", () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set(\"helperToken\", pm.response.json().token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Mauvais mot de passe → 401 générique",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\": \"{{authorEmail}}\", \"password\": \"faux\"}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 401\", () => pm.response.to.have.status(401));",
+                  "pm.test(\"Message générique\", () => pm.expect(pm.response.json().message).to.eql(\"Email ou mot de passe incorrect\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Connexion administrateur",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\": \"{{adminEmail}}\", \"password\": \"{{adminPassword}}\"}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 200\", () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set(\"adminToken\", pm.response.json().token);",
+                  "pm.test(\"Rôle ADMIN\", () => pm.expect(pm.response.json().user.role).to.eql(\"ADMIN\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Connexion modérateur",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\": \"{{moderatorEmail}}\", \"password\": \"{{moderatorPassword}}\"}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 200\", () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set(\"moderatorToken\", pm.response.json().token);",
+                  "pm.test(\"Rôle MODERATOR\", () => pm.expect(pm.response.json().user.role).to.eql(\"MODERATOR\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Profil sans jeton → 401",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "me"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 401\", () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Profil de l'auteur",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "me"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Temps de réponse < 500 ms\", () => pm.expect(pm.response.responseTime).to.be.below(500));",
+                  "pm.collectionVariables.set(\"authorId\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02 - Demandes : CRUD, recherche, filtres",
+      "item": [
+        {
+          "name": "Liste des matières",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/subjects",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "subjects"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Temps de réponse < 500 ms\", () => pm.expect(pm.response.responseTime).to.be.below(500));",
+                  "const s = pm.response.json(); pm.test(\"Au moins 2 matières\", () => pm.expect(s.length).to.be.at.least(2));",
+                  "pm.collectionVariables.set(\"subjectId\", s[0].id); pm.collectionVariables.set(\"otherSubjectId\", s[1].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Publier une demande",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/requests",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\": \"Newman {{runId}} arbres AVL\", \"description\": \"Rotations doubles lors de l'insertion.\", \"availability\": \"Mardi soir\", \"subjectId\": \"{{subjectId}}\", \"level\": \"L2\"}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"Temps de réponse < 500 ms\", () => pm.expect(pm.response.responseTime).to.be.below(500));",
+                  "const r = pm.response.json(); pm.collectionVariables.set(\"requestId\", r.id);",
+                  "pm.test(\"Statut initial OUVERTE\", () => pm.expect(r.status).to.eql(\"OUVERTE\"));"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.request.body.raw = pm.request.body.raw.replace('\"{{subjectId}}\"', pm.collectionVariables.get(\"subjectId\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Publier une demande invalide → 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/requests",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\": \"x\", \"description\": \"\", \"availability\": \"\", \"subjectId\": 999999, \"level\": \"L9\"}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 400\", () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Un administrateur ne publie pas → 403",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/requests",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\": \"Demande admin\", \"description\": \"Description suffisante.\", \"availability\": \"Jamais\", \"subjectId\": 1, \"level\": \"L2\"}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Lire la demande",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{helperToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/requests/{{requestId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests",
+                "{{requestId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Temps de réponse < 500 ms\", () => pm.expect(pm.response.responseTime).to.be.below(500));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Recherche plein texte (insensible à la casse)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{helperToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/requests?q=NEWMAN%20{{runId}}&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "NEWMAN%20{{runId}}"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Temps de réponse < 500 ms\", () => pm.expect(pm.response.responseTime).to.be.below(500));",
+                  "pm.test(\"Exactement 1 résultat\", () => pm.expect(pm.response.json().totalElements).to.eql(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Recherche + filtre matière (autre matière) → 0",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{helperToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/requests?q={{runId}}&subjectId={{otherSubjectId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "{{runId}}"
+                },
+                {
+                  "key": "subjectId",
+                  "value": "{{otherSubjectId}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Aucun résultat\", () => pm.expect(pm.response.json().totalElements).to.eql(0));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Pagination plafonnée à 50",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{helperToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/requests?size=500",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests"
+              ],
+              "query": [
+                {
+                  "key": "size",
+                  "value": "500"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Temps de réponse < 500 ms\", () => pm.expect(pm.response.responseTime).to.be.below(500));",
+                  "pm.test(\"Taille de page ≤ 50\", () => pm.expect(pm.response.json().size).to.be.at.most(50));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Filtre invalide → 400",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{helperToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/requests?level=Z9",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests"
+              ],
+              "query": [
+                {
+                  "key": "level",
+                  "value": "Z9"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 400\", () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Modifier par un autre étudiant → 403",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{helperToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/requests/{{requestId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests",
+                "{{requestId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\": \"Piratage\", \"description\": \"Tentative de modification.\", \"availability\": \"Jamais\", \"subjectId\": 1, \"level\": \"L2\"}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03 - Workflow ouverte → aide acceptée → terminée (RG-01 à RG-05)",
+      "item": [
+        {
+          "name": "L'auteur ne propose pas sur sa demande → 403",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/requests/{{requestId}}/offers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests",
+                "{{requestId}}",
+                "offers"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"message\": \"Je m'aide moi-même\"}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Proposition de l'aidant",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{helperToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/requests/{{requestId}}/offers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests",
+                "{{requestId}}",
+                "offers"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"message\": \"Je peux t'expliquer avec des schémas.\"}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"offerId\", pm.response.json().id);",
+                  "pm.test(\"EN_ATTENTE\", () => pm.expect(pm.response.json().status).to.eql(\"EN_ATTENTE\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Seconde proposition du même aidant → 409",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{helperToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/requests/{{requestId}}/offers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests",
+                "{{requestId}}",
+                "offers"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"message\": \"Encore moi\"}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 409\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Seul l'auteur voit les propositions (aidant → 403)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{helperToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/requests/{{requestId}}/offers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests",
+                "{{requestId}}",
+                "offers"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Clôturer avant acceptation → 409",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/requests/{{requestId}}/complete",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests",
+                "{{requestId}}",
+                "complete"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 409\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "L'aidant ne peut pas accepter → 403",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{helperToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/offers/{{offerId}}/accept",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "offers",
+                "{{offerId}}",
+                "accept"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Accepter la proposition",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/offers/{{offerId}}/accept",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "offers",
+                "{{offerId}}",
+                "accept"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"ACCEPTEE\", () => pm.expect(pm.response.json().status).to.eql(\"ACCEPTEE\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "La demande est passée en AIDE_ACCEPTEE",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/requests/{{requestId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests",
+                "{{requestId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"AIDE_ACCEPTEE\", () => pm.expect(pm.response.json().status).to.eql(\"AIDE_ACCEPTEE\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Retirer une proposition acceptée → 409",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{helperToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/offers/{{offerId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "offers",
+                "{{offerId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 409\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Évaluer avant clôture → 409",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/requests/{{requestId}}/ratings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests",
+                "{{requestId}}",
+                "ratings"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"score\": 5}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 409\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Clôturer la séance",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/requests/{{requestId}}/complete",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests",
+                "{{requestId}}",
+                "complete"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"TERMINEE\", () => pm.expect(pm.response.json().status).to.eql(\"TERMINEE\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Note hors limites → 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/requests/{{requestId}}/ratings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests",
+                "{{requestId}}",
+                "ratings"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"score\": 7}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 400\", () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Évaluation par l'auteur",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/requests/{{requestId}}/ratings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests",
+                "{{requestId}}",
+                "ratings"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"score\": 5, \"comment\": \"Très clair\"}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 201\", () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Double évaluation → 409",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/requests/{{requestId}}/ratings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests",
+                "{{requestId}}",
+                "ratings"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"score\": 4}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 409\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Évaluation par l'aidant",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{helperToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/requests/{{requestId}}/ratings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests",
+                "{{requestId}}",
+                "ratings"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"score\": 4}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 201\", () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Tableau de bord de l'auteur",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/dashboard",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "dashboard"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Temps de réponse < 500 ms\", () => pm.expect(pm.response.responseTime).to.be.below(500));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Supprimer une demande terminée → 409",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/requests/{{requestId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests",
+                "{{requestId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 409\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "04 - Modération et administration (RG-06, RG-07, RG-09, RG-12)",
+      "item": [
+        {
+          "name": "Seconde demande à signaler",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/requests",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\": \"Newman {{runId}} à signaler\", \"description\": \"Contenu à modérer pour le test.\", \"availability\": \"Lundi\", \"subjectId\": \"{{subjectId}}\", \"level\": \"L1\"}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"reportedId\", pm.response.json().id);"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.request.body.raw = pm.request.body.raw.replace('\"{{subjectId}}\"', pm.collectionVariables.get(\"subjectId\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Signaler sa propre demande → 403",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/requests/{{reportedId}}/reports",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests",
+                "{{reportedId}}",
+                "reports"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"reason\": \"Je me signale\"}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Signalement par l'aidant",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{helperToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/requests/{{reportedId}}/reports",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests",
+                "{{reportedId}}",
+                "reports"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"reason\": \"Hors sujet {{runId}}\"}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 201\", () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Étudiant → espace modération 403",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{helperToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/reports",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "reports"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Modérateur → liste des signalements",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{moderatorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/reports",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "reports"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Temps de réponse < 500 ms\", () => pm.expect(pm.response.responseTime).to.be.below(500));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Modérateur → espace administrateur 403",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{moderatorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "users"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Modérateur masque la publication",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{moderatorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/requests/{{reportedId}}/hide",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "requests",
+                "{{reportedId}}",
+                "hide"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Publication masquée → 404 pour les étudiants",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{helperToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/requests/{{reportedId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests",
+                "{{reportedId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 404\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Recherche de comptes (admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users?q={{runId}}&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "users"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "{{runId}}"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Temps de réponse < 500 ms\", () => pm.expect(pm.response.responseTime).to.be.below(500));",
+                  "pm.test(\"2 comptes du run\", () => pm.expect(pm.response.json().totalElements).to.eql(2));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Statistiques (admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/stats",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "stats"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Temps de réponse < 500 ms\", () => pm.expect(pm.response.responseTime).to.be.below(500));",
+                  "pm.test(\"Indicateurs présents\", () => pm.expect(pm.response.json()).to.include.keys(\"requestsByStatus\", \"usersByRole\", \"requestsPerDay\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Période de statistiques invalide → 400",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/stats?from=2026-12-01&to=2026-01-01",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "stats"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "2026-12-01"
+                },
+                {
+                  "key": "to",
+                  "value": "2026-01-01"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 400\", () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Journal d'audit filtré (masquage)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/audit?action=REQUEST_HIDDEN&size=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "audit"
+              ],
+              "query": [
+                {
+                  "key": "action",
+                  "value": "REQUEST_HIDDEN"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Temps de réponse < 500 ms\", () => pm.expect(pm.response.responseTime).to.be.below(500));",
+                  "pm.test(\"Le masquage est tracé\", () => pm.expect(pm.response.json().content.some(e => String(e.targetId) === String(pm.collectionVariables.get(\"reportedId\")))).to.be.true);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Journal d'audit (échecs de connexion)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/audit?action=LOGIN_FAILED&size=50",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "audit"
+              ],
+              "query": [
+                {
+                  "key": "action",
+                  "value": "LOGIN_FAILED"
+                },
+                {
+                  "key": "size",
+                  "value": "50"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Échec de connexion tracé avec l'email\", () => pm.expect(pm.response.json().content.some(e => e.actorEmail === pm.collectionVariables.get(\"authorEmail\"))).to.be.true);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8280"
+    },
+    {
+      "key": "adminEmail",
+      "value": "admin@campusconnect.local"
+    },
+    {
+      "key": "adminPassword",
+      "value": "Admin12345"
+    },
+    {
+      "key": "moderatorEmail",
+      "value": "moderateur@campusconnect.local"
+    },
+    {
+      "key": "moderatorPassword",
+      "value": "Moderateur123"
+    }
+  ]
+}

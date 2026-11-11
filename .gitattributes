@@ -1,0 +1,9 @@
+# Fins de ligne : scripts shell en LF (exécutés sous WSL/Linux et dans les conteneurs), scripts Windows en CRLF
+* text=auto
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+*.png binary
+*.jpg binary
+*.pdf binary

@@ -1,0 +1,239 @@
+# Campagne qualité ISO/IEC 25010 exécutée à chaque push : chaque job publie ses rapports en artefacts.
+name: Qualité ISO 25010
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  DB_NAME: campusconnect_ci
+  DB_USERNAME: campusconnect_user
+  DB_PASSWORD: ci-password
+  JWT_SECRET: ci-secret-0123456789abcdef0123456789abcdef
+  SHOW_SQL: "false"
+  ADMIN_EMAIL: admin@campusconnect.local
+  ADMIN_PASSWORD: Admin12345
+
+jobs:
+  backend:
+    name: Backend — tests, couverture, analyse statique
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: campusconnect_ci
+          POSTGRES_USER: campusconnect_user
+          POSTGRES_PASSWORD: ci-password
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U campusconnect_user" --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      DB_HOST: localhost
+      DB_PORT: "5432"
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Tests unitaires et d'intégration + seuils JaCoCo
+        run: mvn -B verify
+      - name: Rapport HTML des tests
+        if: always()
+        run: mvn -B surefire-report:report-only
+      - name: SpotBugs + FindSecBugs
+        run: mvn -B spotbugs:check
+      - name: Synthèse de couverture
+        if: always()
+        run: |
+          if [ -f target/site/jacoco/jacoco.csv ]; then
+            awk -F, 'NR>1 {lm+=$8; lc+=$9; bm+=$6; bc+=$7} END {printf "### Couverture JaCoCo\n\n| Lignes | Branches |\n|---|---|\n| %.1f %% | %.1f %% |\n", 100*lc/(lm+lc), 100*bc/(bm+bc)}' \
+              target/site/jacoco/jacoco.csv >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-rapports
+          path: |
+            backend/target/site/jacoco/
+            backend/target/reports/
+            backend/target/surefire-reports/
+            backend/target/spotbugs*.*
+
+  frontend:
+    name: Frontend — lint, types, build, audit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - name: ESLint (qualité + sécurité)
+        run: npx eslint . && npx eslint . -f html -o eslint-report.html
+      - name: TypeScript
+        run: npx tsc --noEmit
+      - name: Build de production
+        run: npm run build
+      - name: npm audit (dépendances de production)
+        run: npm audit --omit=dev --audit-level=high
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: frontend-rapports
+          path: frontend/eslint-report.html
+
+  e2e:
+    name: E2E 3 navigateurs + API + DAST
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: campusconnect_ci
+          POSTGRES_USER: campusconnect_user
+          POSTGRES_PASSWORD: ci-password
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U campusconnect_user" --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      DB_HOST: localhost
+      DB_PORT: "5432"
+      MODERATOR_EMAIL: moderateur@campusconnect.local
+      MODERATOR_PASSWORD: Moderateur123
+      SERVER_PORT: "8280"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            package-lock.json
+      - name: Démarrer le backend
+        run: |
+          (cd backend && mvn -B -q -DskipTests package)
+          nohup java -jar backend/target/backend-0.0.1-SNAPSHOT.jar > backend.log 2>&1 &
+          for i in $(seq 1 90); do curl -fs http://localhost:8280/api/health && break; sleep 2; done
+      - name: Démarrer le frontend
+        working-directory: frontend
+        env:
+          BACKEND_URL: http://localhost:8280
+          COOKIE_SECURE: "false"
+        run: |
+          npm ci
+          npm run build
+          nohup npx next start -p 3010 > ../frontend.log 2>&1 &
+          for i in $(seq 1 60); do curl -fs -o /dev/null http://localhost:3010/login && break; sleep 1; done
+      - name: Installer les navigateurs Playwright
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium firefox webkit
+      - name: Playwright — Chromium, Firefox, WebKit, mobile + axe
+        working-directory: frontend
+        run: npx playwright test
+      - name: Newman — API
+        if: always()
+        run: |
+          npm ci
+          npx newman run qa/newman/campusconnect.postman_collection.json --env-var baseUrl=http://localhost:8280 \
+            -r cli,htmlextra,junit --reporter-htmlextra-export qa/reports/newman/index.html --reporter-junit-export qa/reports/newman/junit.xml
+      - name: OWASP ZAP baseline (frontend)
+        if: always()
+        run: |
+          mkdir -p qa/reports/zap && chmod 777 qa/reports/zap
+          docker run --rm --network host -v "$PWD/qa/reports/zap:/zap/wrk:rw" ghcr.io/zaproxy/zaproxy:stable \
+            zap-baseline.py -t http://localhost:3010/login -r zap-frontend.html -J zap-frontend.json -w zap-frontend.md -I -j
+          cat qa/reports/zap/zap-frontend.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-rapports
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+            qa/reports/
+            backend.log
+            frontend.log
+
+  sca:
+    name: Sécurité — Trivy (dépendances, secrets, configuration)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Trivy (dépôt)
+        run: |
+          mkdir -p qa/reports/trivy
+          docker run --rm -v "$PWD:/src:ro" -v "$PWD/qa/reports/trivy:/out" aquasec/trivy:0.58.0 \
+            fs --scanners vuln,secret,misconfig --format table --output /out/trivy-fs.txt /src
+          docker run --rm -v "$PWD:/src:ro" -v "$PWD/qa/reports/trivy:/out" aquasec/trivy:0.58.0 \
+            fs --scanners vuln,secret,misconfig --format json --output /out/trivy-fs.json /src
+          { echo '### Trivy'; echo '```'; head -n 60 qa/reports/trivy/trivy-fs.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trivy-rapports
+          path: qa/reports/trivy/
+
+  docker:
+    name: Portabilité (Docker Compose) + charge k6
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Fichier d'environnement Docker
+        run: |
+          cp docker.env.example docker.env
+          sed -i 's/^DB_PASSWORD=.*/DB_PASSWORD=ci-password/; s/^JWT_SECRET=.*/JWT_SECRET=ci-secret-0123456789abcdef0123456789abcdef/' docker.env
+      - name: Construction et démarrage depuis zéro
+        run: |
+          start=$(date +%s)
+          docker compose --env-file docker.env up -d --build
+          for i in $(seq 1 120); do curl -fs http://localhost:8380/api/health && break; sleep 2; done
+          for i in $(seq 1 60); do curl -fs -o /dev/null http://localhost:3080/login && break; sleep 1; done
+          echo "### Portabilité : pile prête en $(( $(date +%s) - start )) s (build compris)" >> "$GITHUB_STEP_SUMMARY"
+          docker compose --env-file docker.env ps
+      - name: Newman sur la pile Docker
+        run: |
+          npm ci
+          npx newman run qa/newman/campusconnect.postman_collection.json --env-var baseUrl=http://localhost:8380 \
+            -r cli,junit --reporter-junit-export qa/reports/newman-docker/junit.xml
+      - name: k6 — 20 utilisateurs, p95 < 500 ms
+        run: |
+          mkdir -p qa/reports/k6 && chmod 777 qa/reports/k6
+          docker run --rm --network host -v "$PWD/qa:/qa" -e BASE_URL=http://localhost:8380 \
+            -e K6_WEB_DASHBOARD=true -e K6_WEB_DASHBOARD_EXPORT=/qa/reports/k6/load-dashboard.html \
+            grafana/k6:0.57.0 run --summary-export=/qa/reports/k6/load-summary.json /qa/k6/load-test.js
+      - name: Fiabilité — panne et reprise de la base
+        if: always()
+        run: bash qa/scripts/reliability.sh && cat qa/reports/reliability/reliability.md >> "$GITHUB_STEP_SUMMARY"
+        env:
+          BACKEND_URL: http://localhost:8380
+          FRONTEND_URL: http://localhost:3080
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: docker-k6-rapports
+          path: qa/reports/

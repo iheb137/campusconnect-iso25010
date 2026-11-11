@@ -44,3 +44,9 @@ logs/
 .DS_Store
 Thumbs.db
 desktop.ini
+# ===== Docker / rapports QA =====
+docker.env
+qa/reports/
+frontend/playwright-report/
+frontend/test-results/
+frontend/e2e/.auth/

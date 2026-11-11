@@ -1,9 +1,18 @@
 {
   "name": "campusconnect-iso25010",
   "private": true,
-  "description": "Raccourcis pour démarrer et arrêter CampusConnect (backend + frontend). Utilisés par les configurations IntelliJ du dossier .run.",
+  "description": "Raccourcis de démarrage (start.bat / stop.bat, configurations IntelliJ du dossier .run) et outils QA ISO 25010 exécutables par npm.",
   "scripts": {
     "start": "start.bat",
-    "stop": "stop.bat"
+    "stop": "stop.bat",
+    "qa:newman": "newman run qa/newman/campusconnect.postman_collection.json --env-var baseUrl=%BACKEND_URL% -r cli,htmlextra,junit --reporter-htmlextra-export qa/reports/newman/index.html --reporter-junit-export qa/reports/newman/junit.xml",
+    "qa:newman:local": "newman run qa/newman/campusconnect.postman_collection.json --env-var baseUrl=http://localhost:8280 -r cli,htmlextra,junit --reporter-htmlextra-export qa/reports/newman/index.html --reporter-junit-export qa/reports/newman/junit.xml",
+    "qa:newman:docker": "newman run qa/newman/campusconnect.postman_collection.json --env-var baseUrl=http://localhost:8380 -r cli,htmlextra,junit --reporter-htmlextra-export qa/reports/newman-docker/index.html --reporter-junit-export qa/reports/newman-docker/junit.xml",
+    "qa:lighthouse": "lighthouse http://localhost:3010/login --only-categories=accessibility,best-practices,performance --output=html --output=json --output-path=qa/reports/lighthouse/login --chrome-flags=\"--headless=new\""
+  },
+  "devDependencies": {
+    "lighthouse": "13.6.0",
+    "newman": "6.2.3",
+    "newman-reporter-htmlextra": "1.23.1"
   }
 }
