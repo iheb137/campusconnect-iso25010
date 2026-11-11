@@ -86,10 +86,11 @@ jobs:
       - run: npm ci
       - name: ESLint (qualité + sécurité)
         run: npx eslint . && npx eslint . -f html -o eslint-report.html
-      - name: TypeScript
-        run: npx tsc --noEmit
+      # Le build génère les types de routes de Next (.next/types) dont TypeScript a besoin : il passe donc avant.
       - name: Build de production
         run: npm run build
+      - name: TypeScript
+        run: npx tsc --noEmit
       - name: npm audit (dépendances de production)
         run: npm audit --omit=dev --audit-level=high
       - uses: actions/upload-artifact@v4
