@@ -1,0 +1,62 @@
+# CampusConnect — déploiement portable (ISO 25010 : portabilité)
+# Démarrage : docker compose --env-file docker.env up -d --build
+# Arrêt     : docker compose down        (ajouter -v pour effacer la base)
+name: campusconnect
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${DB_NAME:-campusconnect}
+      POSTGRES_USER: ${DB_USERNAME:-campusconnect_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD manquant dans docker.env}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    ports:
+      - "${DB_HOST_PORT:-55432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    image: campusconnect-backend:latest
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-campusconnect}
+      DB_USERNAME: ${DB_USERNAME:-campusconnect_user}
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET manquant dans docker.env}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      MODERATOR_EMAIL: ${MODERATOR_EMAIL:-}
+      MODERATOR_PASSWORD: ${MODERATOR_PASSWORD:-}
+      DEMO_REQUESTS: ${DEMO_REQUESTS:-0}
+      SERVER_PORT: 8280
+    ports:
+      - "${BACKEND_HOST_PORT:-8380}:8280"
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    image: campusconnect-frontend:latest
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      BACKEND_URL: http://backend:8280
+      # Pas de TLS en local : le cookie de session ne peut pas être « Secure » sur http
+      COOKIE_SECURE: "false"
+    ports:
+      - "${FRONTEND_HOST_PORT:-3080}:3000"
+    restart: unless-stopped
+
+volumes:
+  db-data:
