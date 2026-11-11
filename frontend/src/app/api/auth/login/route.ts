@@ -34,7 +34,8 @@ export async function POST(request: NextRequest) {
   response.cookies.set(TOKEN_COOKIE, data.token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    // Secure en production, sauf déploiement local sans TLS (COOKIE_SECURE=false, voir docker-compose.yml)
+    secure: process.env.COOKIE_SECURE ? process.env.COOKIE_SECURE === "true" : process.env.NODE_ENV === "production",
     path: "/",
     maxAge: data.expiresInSeconds,
   });

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 
 import {
   addOutline,
@@ -40,12 +41,14 @@ export default function RequestsBrowser() {
   const subjectId = searchParams.get("subjectId") ?? "";
   const level = searchParams.get("level") ?? "";
   const status = searchParams.get("status") ?? "";
+  const q = searchParams.get("q") ?? "";
   const page = Math.max(Number(searchParams.get("page") ?? "0") || 0, 0);
 
   const query = new URLSearchParams();
   if (subjectId) query.set("subjectId", subjectId);
   if (level) query.set("level", level);
   if (status) query.set("status", status);
+  if (q) query.set("q", q);
   query.set("page", String(page));
   query.set("size", String(PAGE_SIZE));
 
@@ -61,7 +64,23 @@ export default function RequestsBrowser() {
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: key === "page" });
   }
 
-  const hasFilters = Boolean(subjectId || level || status);
+  // Recherche texte : on attend une courte pause de frappe avant d'interroger l'API.
+  const [text, setText] = useState(q);
+  const [syncedQ, setSyncedQ] = useState(q);
+  if (q !== syncedQ) {
+    // L'URL a changé ailleurs (réinitialisation, navigation) : on resynchronise le champ.
+    setSyncedQ(q);
+    if (text.trim() !== q) setText(q);
+  }
+  useEffect(() => {
+    if (text.trim() === q) return;
+    const timer = setTimeout(() => setFilter("q", text.trim()), 350);
+    return () => clearTimeout(timer);
+    // setFilter dépend de l'URL courante, déjà couverte par q
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [text, q]);
+
+  const hasFilters = Boolean(subjectId || level || status || q);
 
   return (
     <>
@@ -75,6 +94,21 @@ export default function RequestsBrowser() {
       </PageHead>
 
       <form className="card filters" role="search" aria-label="Filtrer les demandes" onSubmit={(e) => e.preventDefault()}>
+        <div className="field filters-search">
+          <label htmlFor="filter-q">Rechercher</label>
+          <div className="input-wrap">
+            <Icon icon={searchOutline} size={18} />
+            <input
+              id="filter-q"
+              className="input"
+              type="search"
+              placeholder="Mot du titre ou de la description"
+              value={text}
+              maxLength={100}
+              onChange={(event) => setText(event.target.value)}
+            />
+          </div>
+        </div>
         <div className="field">
           <label htmlFor="filter-subject">Matière</label>
           <div className="input-wrap">

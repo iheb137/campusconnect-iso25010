@@ -1,4 +1,5 @@
-const PALETTE = ["#4f5bd5", "#0f9d8a", "#d9480f", "#7048e8", "#1c7ed6", "#c2255c", "#2b8a3e", "#e67700"];
+// Couleurs de fond avec un contraste ≥ 4,5:1 pour le texte blanc (WCAG 1.4.3)
+const PALETTE = ["#4f5bd5", "#0b7a6b", "#c03d0b", "#7048e8", "#1971c2", "#c2255c", "#2f7d3a", "#b35c00"];
 
 function colorFor(name: string) {
   let hash = 0;

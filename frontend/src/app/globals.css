@@ -10,7 +10,7 @@
   --surface-3: #e7eaf5;
   --text: #0f172a;
   --muted: #5b6478;
-  --subtle: #8a93a8;
+  --subtle: #646d82;
   --border: #e3e7f1;
   --border-strong: #cfd5e4;
 
@@ -162,6 +162,12 @@ a:hover {
   text-decoration: underline;
 }
 
+/* Lien dans un texte : souligné, pas seulement coloré (WCAG 1.4.1) */
+:where(p, .small, .muted, .hint) a:not(.btn) {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 :focus-visible {
   outline: 3px solid var(--focus);
   outline-offset: 2px;
@@ -213,6 +219,9 @@ ol {
   position: absolute;
   width: 1px;
   height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
@@ -1172,6 +1181,10 @@ fieldset {
   align-items: end;
 }
 
+.filters-search {
+  grid-column: 1 / -1;
+}
+
 @media (max-width: 820px) {
   .filters {
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -1869,6 +1882,8 @@ fieldset {
 
 /* ===== Administration : tableaux, barres, graphiques ===== */
 .table-wrap {
+  /* position: relative → les éléments masqués (visually-hidden) restent dans la zone défilante */
+  position: relative;
   overflow-x: auto;
   border: 1px solid var(--border);
   border-radius: var(--radius);

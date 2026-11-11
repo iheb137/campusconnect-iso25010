@@ -49,6 +49,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     void refresh();
   }, [refresh]);
 
+  useEffect(() => {
+    // Marqueur posé une fois React hydraté : les tests E2E attendent ce signal avant de saisir quoi que ce soit.
+    document.documentElement.dataset.hydrated = "true";
+  }, []);
+
   const value = useMemo(() => ({ user, loading, setUser, refresh, logout }), [user, loading, refresh, logout]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
