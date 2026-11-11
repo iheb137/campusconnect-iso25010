@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Exclusions SpotBugs justifiées (voir rapport de conformité, caractéristique Maintenabilité/Sécurité).
+  Chaque exclusion est volontairement limitée à un motif et à un périmètre précis.
+-->
+<FindBugsFilter
+        xmlns="https://github.com/spotbugs/filter/3.0.0"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="https://github.com/spotbugs/filter/3.0.0 https://raw.githubusercontent.com/spotbugs/spotbugs/3.1.0/spotbugs/etc/findbugsfilter.xsd">
+
+    <!-- Entités JPA : Hibernate exige des getters/setters sur des collections et objets mutables. -->
+    <Match>
+        <Package name="com.campusconnect.backend.entity"/>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    </Match>
+
+    <!-- Beans Spring : les dépendances injectées par constructeur sont des singletons gérés par le conteneur. -->
+    <Match>
+        <Or>
+            <Package name="com.campusconnect.backend.service"/>
+            <Package name="com.campusconnect.backend.controller"/>
+            <Package name="com.campusconnect.backend.security"/>
+            <Package name="com.campusconnect.backend.config"/>
+        </Or>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+
+    <!--
+      API REST sans état authentifiée par jeton Bearer (en-tête Authorization), sans cookie de session côté backend :
+      un site tiers ne peut pas faire envoyer ce jeton par le navigateur, la protection CSRF de Spring est donc sans objet.
+      Le cookie httpOnly du frontend est en SameSite=Lax (voir rapport de conformité, SEC-UI-01).
+    -->
+    <Match>
+        <Class name="com.campusconnect.backend.security.SecurityConfig"/>
+        <Bug pattern="SPRING_CSRF_PROTECTION_DISABLED"/>
+    </Match>
+
+    <!-- Générateur de données de démonstration (tests de charge) : aucun usage cryptographique du hasard. -->
+    <Match>
+        <Class name="com.campusconnect.backend.config.DemoDataSeeder"/>
+        <Bug pattern="PREDICTABLE_RANDOM"/>
+    </Match>
+
+    <!-- Les tests ne sont pas livrés en production. -->
+    <Match>
+        <Class name="~.*Tests?$"/>
+    </Match>
+</FindBugsFilter>
