@@ -6,7 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:e2e": "playwright test",
+    "test:e2e:chromium": "playwright test --project=chromium",
+    "test:e2e:report": "playwright show-report",
+    "lint:report": "eslint -f html -o ../qa/reports/eslint/index.html ."
   },
   "dependencies": {
     "geist": "^1.5.1",
@@ -16,11 +20,17 @@
     "react-dom": "19.3.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
+    "@playwright/test": "^1.63.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.4.2",
+    "eslint-plugin-security": "^4.2.1",
     "typescript": "^5"
+  },
+  "overrides": {
+    "playwright-core": "1.63.0"
   }
 }
